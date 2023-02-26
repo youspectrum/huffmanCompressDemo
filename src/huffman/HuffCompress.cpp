@@ -106,106 +106,110 @@ void HuffCompress::compress(const std::string &file_path) {
     read_.rdbuf()->pubsetbuf(rbuffer, 10240);
     write_.rdbuf()->pubsetbuf(wbuffer, 10240);
 
+    open("/home/dongl/code/test.huffman", write_, [&] {
+        std::bitset<8> headerType(00000000);
+        std::string headerCoding;
+        int index = 7;
+        write_ << CHAR_WRITE &headerType;
 
-    write_.open("/home/dongl/code/test.huffman", std::ios::out | std::ios::binary | std::ios::app);
-    std::bitset<8> headerType(00000000);
-    std::string headerCoding;
-    int index = 7;
-    write_ << CHAR_WRITE &headerType;
-
-    /*********************** begin ***************************/
-    // 写入头部长度
-    unsigned long int sum = 0;
-    // 8bit char xxx bit coding 4bit coding len
-    for (const auto &item: kChar_vCoding_) {
-        sum += sizeof(item.first) * 8 + item.second.size() + 4;
-    }
-
-    printf("sum:    %lu\n", sum);
-    sum = sum % 8 == 0 ? sum / 8 : sum / 8 + 1;
-    printf("sum:    %lu\n", sum);
-    // 解压时 告诉 解压程序 有多少个 coding对
-    write_ << (unsigned char) kChar_vCoding_.size();
-    // 解压时 接下来要读 sum个字节
-    write_ << UCHAR_WRITE &sum;
-    /************************ end ***************************/
-
-    for (const auto &item: kChar_vCoding_) {
-        auto bitSum = BIT item.second.size();
-        // 头部每个字符huffman编码的长度 4bit len
-        headerCoding += bitSum.to_string().substr(4,8);
-
-        for (const char i: (BIT item.first).to_string()) {
-            headerCoding.push_back(i);
-            std::cout << i;
+        /*********************** begin ***************************/
+        // 写入头部长度
+        unsigned long int sum = 0;
+        // 8bit char xxx bit coding 4bit coding len
+        for (const auto &item: kChar_vCoding_) {
+            sum += sizeof(item.first) * 8 + item.second.size() + 4;
         }
-        std::cout << std::endl;
-        for (const auto &coding_i: item.second) {
-            headerCoding.push_back(coding_i);
-            std::cout << coding_i;
-        }
-        std::cout << std::endl;
-    }
 
-    for (const auto &item: headerCoding) {
-        if (index == 0) {
-            if (item == '1') {
-                headerType.set(index);
+        printf("sum:    %lu\n", sum);
+        sum = sum % 8 == 0 ? sum / 8 : sum / 8 + 1;
+        printf("sum:    %lu\n", sum);
+        // 解压时 告诉 解压程序 有多少个 coding对
+        write_ << (unsigned char) kChar_vCoding_.size();
+        // 解压时 接下来要读 sum个字节
+        write_ << UCHAR_WRITE &sum;
+        /************************ end ***************************/
+
+        for (const auto &item: kChar_vCoding_) {
+            auto bitSum = BIT item.second.size();
+            // 头部每个字符huffman编码的长度 4bit len
+            headerCoding += bitSum.to_string().substr(4,8);
+
+            for (const char i: (BIT item.first).to_string()) {
+                headerCoding.push_back(i);
+                std::cout << i;
             }
-            write_ << CHAR_WRITE &headerType;
-            headerType.reset();
-            index = 7;
-        } else {
-            if (item == '1') {
-                headerType.set(index);
+            std::cout << std::endl;
+            for (const auto &coding_i: item.second) {
+                headerCoding.push_back(coding_i);
+                std::cout << coding_i;
             }
-            index--;
+            std::cout << std::endl;
         }
-    }
-    write_ << CHAR_WRITE &headerType;
-    headerType.reset();
-    write_ << CHAR_WRITE &headerType;
 
+        for (const auto &item: headerCoding) {
+            if (index == 0) {
+                if (item == '1') {
+                    headerType.set(index);
+                }
+                write_ << CHAR_WRITE &headerType;
+                headerType.reset();
+                index = 7;
+            } else {
+                if (item == '1') {
+                    headerType.set(index);
+                }
+                index--;
+            }
+        }
+        write_ << CHAR_WRITE &headerType;
+        headerType.reset();
+        write_ << CHAR_WRITE &headerType;
 
-    std::bitset<8> type;
-    type.reset();
-    char temp;
-    unsigned int bit_max_index = 8 - 1;
-    unsigned int bit_index = 0;
+        std::bitset<8> type;
+        type.reset();
+        char temp;
+        unsigned int bit_max_index = 8 - 1;
+        unsigned int bit_index = 0;
 
-    open(file_path, read_, [&]() {
-        while (read_ >> temp) {
-            auto coding = kChar_vCoding_.find(temp)->second;
-            for (char i: coding) {
-                if (bit_index == bit_max_index) {
-                    if (i == '1') {
-                        type.set(bit_max_index - bit_index);
+        open(file_path, read_, [&]() {
+            while (read_ >> temp) {
+                auto coding = kChar_vCoding_.find(temp)->second;
+                for (char i: coding) {
+                    if (bit_index == bit_max_index) {
+                        if (i == '1') {
+                            type.set(bit_max_index - bit_index);
+                        }
+
+                        char s = CHAR_WRITE &type;
+                        write_ << s;
+                        type.reset();
+                        bit_index = 0;
+
+                    } else {
+                        if (i == '1') {
+                            type.set(bit_max_index - bit_index);
+                        }
+
+                        bit_index++;
                     }
-
-                    char s = CHAR_WRITE &type;
-                    write_ << s;
-                    type.reset();
-                    bit_index = 0;
-
-                } else {
-                    if (i == '1') {
-                        type.set(bit_max_index - bit_index);
-                    }
-
-                    bit_index++;
                 }
             }
-        }
-    });
+        });
 
-    char s = CHAR_WRITE &type;
-    write_ << s;
-    write_.close();
+        char s = CHAR_WRITE &type;
+        write_ << s;
+        write_.close();
+    });
 }
 
 
 void HuffCompress::open(const std::string& file_path, std::fstream& stream, const OpenEvent& openEvent) {
-    stream.open(file_path.c_str(), std::ios::in | std::ios::binary);
+    if (&stream == &this->read_) {
+        stream.open(file_path.c_str(), std::ios::in | std::ios::binary);
+    } else if (&stream == &this->write_) {
+        stream.open(file_path.c_str(), std::ios::out | std::ios::binary | std::ios::app);
+    }
+
     if (!stream.is_open()) {
         printf("fs.is_open() = %s, notnull\n", file_path.c_str());
         exit(1);

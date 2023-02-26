@@ -92,21 +92,29 @@ void HuffDecompression::decompression(const std::string &file_path) {
         /// body data
         std::string bodyDataStream;
         char bodyData;
-        while (read_ >> bodyData) {
-            for (const auto &item: (BIT_8 bodyData).to_string()) {
-                bodyDataStream += item;
-                auto originalText = kCoding_vChar.find(bodyDataStream);
-                if (originalText != kCoding_vChar.end()) {
-                    printf("%c", originalText->second);
-                    bodyDataStream.clear();
+        open("/home/dongl/code/test1.txt", write_, [&] () {
+            while (read_ >> bodyData) {
+                for (const auto &item: (BIT_8 bodyData).to_string()) {
+                    bodyDataStream += item;
+                    auto originalText = kCoding_vChar.find(bodyDataStream);
+                    if (originalText != kCoding_vChar.end()) {
+                        write_ << originalText->second;
+                        bodyDataStream.clear();
+                    }
                 }
             }
-        }
+        });
+
     });
 }
 
 void HuffDecompression::open(const std::string& file_path, std::fstream& stream, const OpenEvent& openEvent) {
-    stream.open(file_path.c_str(), std::ios::in | std::ios::binary);
+    if (&stream == &this->read_) {
+        stream.open(file_path.c_str(), std::ios::in | std::ios::binary);
+    } else if (&stream == &this->write_) {
+        stream.open(file_path.c_str(), std::ios::out | std::ios::binary);
+    }
+
     if (!stream.is_open()) {
         printf("fs.is_open() = %s, notnull\n", file_path.c_str());
         exit(1);
